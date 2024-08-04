@@ -1,20 +1,27 @@
 library(xml2)
+library(rvest)
 
-# ler o HTML
-html <- read_html("exemplos_de_aula/html_exemplo.html")
+html <- read_html("dados/html/html_exemplo.html")
 
-# Coletar todos os nodes com a tag <p>
+# extrair tags
+# <p>
+xml_find_all(html, "/html/body/p")
+
 nodes <- xml_find_all(html, "//p")
-nodes
+nodes[[1]]
+primeiro <- xml_find_first(html, "//p")
 
-# buscar no documento todo ou dentro das tags
-xml_find_all(nodes, "//head")
-xml_find_all(nodes, "/head")
+# agora vamos extrair texto
+textos <- xml_text(nodes)
 
-# Extrair o texto contido em cada um dos nodes
-text <- xml_text(nodes)
-text
-
-# extração de atributos
+# agora vamos extrair os atributos
 xml_attrs(nodes)
 xml_attr(nodes, "style")
+
+# RVEST
+
+nodes <- html_elements(html, xpath = "//p")
+primeiro <- html_element(html, xpath = "//p")
+
+html_text(nodes)
+html_attr(nodes, "style")

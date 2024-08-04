@@ -1,45 +1,38 @@
+# usethis::edit_r_environ("project")
 
-openai_subscription_key <- Sys.getenv("OPENAI_API_KEY")
+library(httr)
 
-endpoint <- "https://api.openai.com/v1/chat/completions"
+u_base <- "https://api.openai.com/v1/"
+endpoint <- "chat/completions"
+u_completions <- paste0(u_base, endpoint)
 
-# Create authorization header
+api_key <- Sys.getenv("OPENAI_API_KEY")
 
-headers <- httr::add_headers(
-  c("Authorization" = paste0("Bearer ", openai_subscription_key))
+headers <- add_headers(
+  Authorization = paste0("Bearer ", api_key)
 )
 
-instrucao_inicial <- "Você é um poeta que escreve no estilo de Olavo Bilac."
+# data = '{\n     "model": "gpt-4o-mini",\n     "messages": [{"role": "user", "content": "Say this is a test!"}],\n     "temperature": 0.7\n   }'
 
-prompt <- "O rato roeu a roupa do rei de roma?"
-
-messages <- list(
-  list(
-    role = "system", 
-    content = instrucao_inicial
+data <- list(
+  model = "gpt-4o-mini",
+  messages = list(
+    list(
+      role = "user",
+      "content" = "Diga que isso é um teste!!"
+    )
   ),
-  list(
-    role = "user", 
-    content = prompt
-  )
+  temperature = 0.7
 )
 
-# Create payload
-payload <- list(
-  model = "gpt-3.5-turbo",
-  messages = messages,
-  temperature = 1
-)
-
-# Make POST request
-response <- httr::POST(
-  url = endpoint,
-  body = payload,
-  headers,
+res <- POST(
+  u_completions, 
+  headers, 
+  #content_type_json(),
+  body = data,
   encode = "json"
 )
 
-response |> 
-  httr::content() |> 
-  purrr::pluck("choices", 1, "message", "content") |> 
-  cat()
+res |> 
+  content() |> 
+  purrr::pluck("choices", 1, "message", "content")

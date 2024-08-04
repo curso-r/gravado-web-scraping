@@ -1,8 +1,7 @@
-u_anatel <- "https://anatel.gov.br/biblioteca"
+library(httr)
 
-httr::GET(u_anatel)
+u_anatel <- "https://anatel.gov.br/biblioteca/asp/resultadoFrame.asp"
 
-u_anatel <- "https://www.anatel.gov.br/biblioteca/asp/resultadoFrame.asp"
 b_anatel <- list(
   "leg_campo1" = "decisão",
   "leg_ordenacao" = "publicacaoDESC",
@@ -27,23 +26,12 @@ b_anatel <- list(
   "submeteu" = "legislacao"
 )
 
-# acesso bloqueado :(
-r_anatel <- httr::POST(u_anatel, body = b_anatel)
-httr::content(r_anatel, "text")
-
-# agora foi! :)
-r_anatel <- httr::POST(
+res <- POST(
   u_anatel, 
-  body = b_anatel, 
+  body = b_anatel,
   encode = "form"
 )
 
-httr::content(r_anatel, "text") |> 
-  stringr::str_squish()
-
-# parser
-r_anatel |> 
-  xml2::read_html() |> 
-  xml2::xml_find_all("//table[@class='td_grid_ficha_background']") |> 
-  rvest::html_table()
-
+res$status_code
+res |> 
+  httr::content("text")

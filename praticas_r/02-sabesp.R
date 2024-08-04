@@ -1,17 +1,35 @@
-# 1. colete os dados de mananciais da sabesp
-u_sabesp <- "http://mananciais.sabesp.com.br/api/Mananciais/ResumoSistemas/2022-01-15"
-r_sabesp <- httr::GET(u_sabesp, httr::config(ssl_verifypeer = FALSE))
-results <- httr::content(r_sabesp, simplifyDataFrame = TRUE)
-results$ReturnObj$sistemas
+library(httr)
 
-# httr
-req <- u_sabesp |> 
-  httr2::request()
+# montando a requisição GET
 
-resp <- req |> 
-  httr2::req_perform()
+dia <- "2024-07-17"
 
-result <- resp |> 
-  httr2::resp_body_json(simplifyDataFrame = TRUE)
+u_base <- "https://mananciais.sabesp.com.br/api/Mananciais/ResumoSistemas/"
 
-result$ReturnObj$sistemas
+u_dia <- paste0(u_base, dia)
+
+r_dia <- GET(u_dia)
+
+l_dia <- content(r_dia, simplifyDataFrame = TRUE)
+
+l_dia$ReturnObj$sistemas |> 
+  tibble::tibble()
+
+d_dia <- l_dia |> 
+  purrr::pluck("ReturnObj", "sistemas") |> 
+  tibble::tibble() |> 
+  janitor::clean_names()
+
+sabesp_baixar_dia <- function(dia) {
+  u_base <- "https://mananciais.sabesp.com.br/api/Mananciais/ResumoSistemas/"
+  u_dia <- paste0(u_base, dia)
+  r_dia <- GET(u_dia)
+  l_dia <- content(r_dia, simplifyDataFrame = TRUE)
+  d_dia <- l_dia |> 
+    purrr::pluck("ReturnObj", "sistemas") |> 
+    tibble::tibble() |> 
+    janitor::clean_names()
+  d_dia
+}
+
+sabesp_baixar_dia("2024-05-02")

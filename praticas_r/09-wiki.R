@@ -1,82 +1,66 @@
-library(xml2)
-library(purrr)
 library(httr)
-library(future)
+library(purrr)
+library(rvest)
+
+# paralelo
 library(furrr)
 library(progressr)
 
-# Na página da Wikipédia, encontrar o objeto correspondente à tabela lateral de 
-# informações. Pegar apenas os elementos correspondentes a links.
+u_wiki <- "https://en.wikipedia.org/wiki/R_language"
 
-links <- "https://en.wikipedia.org/wiki/R_language" |>
-  read_html() |>
-  xml_find_all("//table[@class='infobox vevent']//a")
+r_wiki <- GET(u_wiki)
 
-head(links)
+## outra alternativa
+# read_html(u_wiki)
 
-# Extrair todos os URLs dos links e completá-los com o resto do caminho da
-# Wikipédia. Continuar usando apenas _pipes_.
+links <- r_wiki |> 
+  read_html() |> 
+  html_elements(xpath = "//table[@class='infobox vevent']//a")
 
-urls <- "https://en.wikipedia.org/wiki/R_language" |>
-  read_html() |>
-  xml_find_all("//table[@class='infobox vevent']//a") |>
-  xml_attr("href") |>
-  paste0("https://en.wikipedia.org", .)
+## alternativa xpath
+# r_wiki |> 
+#   read_html() |> 
+#   html_elements(xpath = "//table[contains(@class, 'infobox')]//a")
 
-head(urls)
+urls <- paste0("https://en.wikipedia.org", html_attr(links, "href"))
 
-# Baixar todas as páginas da Wikipédia.
-# para impedir erros quando o URL for inválido; procure saber sobre 
-# a função `map2()` para iterar em mais de uma lista
-
-# salvar os arquivos com `GET(..., write_disk(path))`
-
-dir.create("output")
-
-paths <- paste0("output/", seq_along(urls), ".html")
-
-maybe_get <- function(url, path) {
-  possibly(GET, NULL)(url, write_disk(path))
+baixar_pagina <- function(u, indice, path) {
+  f <- file.path(path, paste0(indice, ".html"))
+  # o if é opcional
+  if (!file.exists(f)) {
+    GET(u, write_disk(f))
+  }
 }
 
-out <- map2(urls, paths, maybe_get)
+## obs: imap pega o índice e coloca como segundo argumento
+# imap(letters, \(letra, indice) print(paste(indice, letra)))
 
-length(compact(out))
+path <- "dados/wiki/"
+imap(urls, \(x, y) baixar_pagina(x, y, path))
 
-# fazendo o mesmo, em paralelo
+safe_baixar_pagina <- possibly(baixar_pagina)
 
-plan(multisession)
-out <- future_map2(urls, paths, maybe_get)
+imap(urls, \(x, y) safe_baixar_pagina(x, y, path), .progress = TRUE)
 
-# fazendo o mesmo, com barra de progresso
+# em paralelo
 
-# reescrevendo a funcao
-maybe_get_progress <- function(url, path, prog) {
-  if (!missing(prog)) prog()
-  possibly(GET, NULL)(url, write_disk(path))
+baixar_pagina_prog <- function(u, indice, path, prog = NULL) {
+  if (!is.null(prog)) prog()
+  f <- file.path(path, paste0(indice, ".html"))
+  # o if é opcional
+  if (!file.exists(f)) {
+    GET(u, write_disk(f))
+  }
 }
+
+safe_baixar_pagina_prog <- possibly(baixar_pagina_prog)
+
+plan(multisession, workers = 8)
 
 with_progress({
   p <- progressor(length(urls))
-  out <- future_map2(urls, paths, maybe_get_progress, p)
+  future_imap(urls, \(x, y) safe_baixar_pagina_prog(x, y, path, p))
 })
 
 
-# curiosidade -------------------------------------------------------------
 
-handlers(list(
-  handler_progress(),
-  handler_beepr(
-    initiate = 2L,
-    update = 10L,
-    finish = 11L
-  )
-))
-
-progressr::with_progress({
-  p <- progressr::progressor(20)
-  walk(1:20, ~{
-    p()
-    Sys.sleep(1)
-  })
-})

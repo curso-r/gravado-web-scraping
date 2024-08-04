@@ -1,43 +1,59 @@
 library(httr)
-library(xml2)
-library(dplyr)
+library(rvest)
 library(purrr)
+library(dplyr)
 
-# Encontrar os links para a descrição das posições
+u_rp <- "https://realpython.github.io/fake-jobs/"
+r_rp <- GET(u_rp)
 
-links <- "https://realpython.github.io/fake-jobs/" |> 
+## usando stringr
+# r_rp |> 
+#   read_html() |> 
+#   html_elements(xpath = "//footer[@class='card-footer']/a") |> 
+#   html_attr("href") |> 
+#   stringr::str_subset("github")
+
+## usando xpath
+links <- r_rp |> 
   read_html() |> 
-  xml_find_all("//footer[@class='card-footer']/a") |> 
-  xml_attr("href") |> 
-  stringr::str_subset("github")
+  html_elements(xpath = "//footer[@class='card-footer']/a[contains(@href,'github')]") |> 
+  html_attr("href")
 
-# Acessar um link e obter as informações
+h_rp <- r_rp |> 
+  read_html()
 
-parse_job <- function(link) {
-  
-  info <- link |> 
-    read_html() |> 
-    xml_find_first("//div[@id='ResultsContainer']")
-    
-  xpaths <- c(
-    ".//h1", ".//h2", ".//p", ".//p[@id='location']", ".//p[@id='date']"
-  )
-  
+cards <- h_rp |> 
+  html_elements(xpath = "//div[@class='card']")
+
+card <- cards[42]
+
+processar_card <- function(card) {
+  xpaths <- c(".//h2", ".//h3", ".//p[@class='location']", ".//time")
+
   xpaths |> 
-    map(~xml_find_first(info, .x)) |> 
-    map(xml_text) |> 
-    set_names("posicao", "empresa", "descricao", "local", "data") |> 
-    as_tibble()
+    map(\(x) html_elements(card, xpath = x)) |> 
+    map_chr(html_text) |> 
+    stringr::str_squish() |> 
+    set_names(c("posicao", "empresa", "local", "dia")) |> 
+    tibble::enframe()  
 }
 
-parse_job(links[1])
+processar_card(cards[10])
 
-# Iterar nos links
+da_cards <- map(cards, processar_card) |> 
+  # poderia ser bind_rows()
+  list_rbind(names_to = "id_card") |> 
+  tidyr::pivot_wider(names_from = name, values_from = value) |> 
+  mutate(link = links)
 
-links |> 
-  map_dfr(parse_job) |> 
-  mutate(
-    local = stringr::str_remove(local, ".+: "),
-    data = stringr::str_remove(data, ".+: "),
-    data = lubridate::as_date(data)
-  )
+pegar_descricao <- function(link) {
+  link |>
+    read_html() |> 
+    html_element(xpath = "//div[@class='content']/p") |> 
+    html_text()
+}
+
+da_cards_desc <- da_cards |> 
+  mutate(desc = map_chr(link, pegar_descricao, .progress = TRUE))
+
+

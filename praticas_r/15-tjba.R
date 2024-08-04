@@ -1,47 +1,46 @@
+library(httr)
+# install.packages("remotes")
+# remotes::install_github("decryptr/captcha")
+library(captcha)
 
-tjba_cpopg_download <- function(id, path) {
+u_tjba <- "http://esaj.tjba.jus.br/cpopg/search.do"
+processo <- "0001351-58.2012.8.05.0006"
+parte_inicial <- stringr::str_sub(processo, 1, 15)
+parte_final <- stringr::str_sub(processo, -4, -1)
 
-  ts <- stringr::str_replace_all(lubridate::now("Brazil/East"), "[^0-9]", "")
+r0_tjba <- GET(u_tjba)
 
-  f_captcha <- fs::file_temp(ext = ".png")
+u_captcha <- "http://esaj.tjba.jus.br/cpopg/imagemCaptcha.do"
+r_captcha <- GET(
+  u_captcha,
+  write_disk("dados/tjba/captcha.png", TRUE),
+  config(ssl_verifypeer = FALSE)
+)
 
-  # primeiro: acessar a página inicial
+cap <- read_captcha("dados/tjba/captcha.png")
 
-  u_search <- "http://esaj.tjba.jus.br/cpopg/search.do"
-  r0 <- httr::GET(u_search)
+cap |> 
+  plot()
 
-  # segundo: baixar o captcha e resolvê-lo
-  httr::GET(
-    "http://esaj.tjba.jus.br/cpopg/imagemCaptcha.do",
-    query = list(timestamp = ts),
-    httr::write_disk(f_captcha)
-  )
+## solução manual
+## vl_captcha <- captcha_annotate(cap)
 
-  ## visualizar
-  # img <- decryptr::read_captcha(f_captcha)
-  # plot(img[[1]])
+modelo <- captcha_load_model("esaj")
 
-  # resolvendo o captcha
-  modelo <- decryptr::load_model("esaj")
-  label <- decryptr::decrypt(f_captcha, modelo)
+vl_captcha <- decrypt("dados/tjba/captcha.png", modelo)
 
-  # terceiro: incluindo o captcha nos parâmetros da sua busca
-  query <- list(
-    "dadosConsulta.localPesquisa.cdLocal" = "-1",
-    "cbPesquisa" = "NUMPROC",
-    "dadosConsulta.tipoNuProcesso" = "UNIFICADO",
-    "numeroDigitoAnoUnificado" = stringr::str_sub(id, 1, 13),
-    "foroNumeroUnificado" = stringr::str_sub(id, -4, -1),
-    "dadosConsulta.valorConsultaNuUnificado" = id,
-    "dadosConsulta.valorConsulta" = "",
-    "vlCaptcha" = label
-  )
+params <- list(
+  dadosConsulta.localPesquisa.cdLocal = "-1",
+  cbPesquisa = "NUMPROC",
+  dadosConsulta.tipoNuProcesso = "UNIFICADO",
+  numeroDigitoAnoUnificado = parte_inicial,
+  foroNumeroUnificado = parte_final,
+  dadosConsulta.valorConsultaNuUnificado = processo,
+  dadosConsulta.valorConsulta = "",
+  vlCaptcha = vl_captcha
+)
 
-  resultado <- httr::GET(
-    u_search,
-    query = query,
-    httr::write_disk(paste0(path, "/resultado_tjba.html"))
-  )
-
-}
-
+res <- GET(
+  u_tjba, query = params,
+  write_disk("dados/tjba/result.html")
+)
